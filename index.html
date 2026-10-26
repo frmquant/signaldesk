@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SignalDesk — AI Daily Risk Briefing (Muse Spark)</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  :root{--meta:#0064e0;--meta-d:#0a2540;--ink:#0f1d2e;--muted:#5a6b7b;--line:#dfe6ee;
+        --on:#1aa06d;--neutral:#e0a100;--off:#e0483d;--card:#fff;--bg:#eef3f8}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:linear-gradient(135deg,#0064e0 0%,#0a2540 100%);min-height:100vh;padding:14px;color:var(--ink)}
+  .container{max-width:1200px;margin:0 auto}
+  header{text-align:center;color:#fff;margin-bottom:16px}
+  h1{font-size:2em;margin-bottom:4px;text-shadow:2px 2px 4px rgba(0,0,0,.3)}
+  .subtitle{opacity:.92}
+  .badge{display:inline-block;margin-top:8px;padding:4px 12px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);border-radius:20px;font-size:.8em;letter-spacing:.3px}
+  .main{background:var(--card);border-radius:20px;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+
+  /* API bar */
+  .api-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#fff8e1;border:1px solid #ffe082;border-radius:10px;padding:10px 14px;margin-bottom:16px}
+  .api-bar .dot{width:10px;height:10px;border-radius:50%;background:#e57373;flex:0 0 auto}
+  .api-bar.ok .dot{background:#66bb6a}
+  .api-bar label{font-weight:600;font-size:.9em;color:#795548}
+  .api-bar input[type=password],.api-bar input[type=text]{flex:1;min-width:180px;padding:8px 10px;border:1px solid #dcc9a0;border-radius:6px;font-size:.9em}
+  .api-bar .small{font-size:.75em;color:#8d6e63;width:100%}
+  .advanced{display:flex;gap:8px;flex-wrap:wrap;width:100%;margin-top:4px;align-items:center}
+  .advanced input{min-width:110px;font-size:.8em;padding:6px 8px;border:1px solid #dcc9a0;border-radius:6px}
+  .ground{display:flex;align-items:center;gap:6px;font-size:.8em;color:#795548}
+
+  .panel{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:16px}
+  .panel h3{color:var(--meta);margin-bottom:8px;font-size:1.05em}
+  .panel p.hint{color:var(--muted);font-size:.85em;margin-bottom:10px}
+  textarea{width:100%;min-height:150px;padding:12px;border:2px solid var(--line);border-radius:10px;font-family:'SF Mono',ui-monospace,Menlo,monospace;font-size:.92em;line-height:1.5;resize:vertical}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px}
+  .chip{display:inline-block;background:#e7eff9;border:1px solid #cfe0f5;color:#0b4aa2;border-radius:16px;padding:4px 10px;margin:3px 4px 0 0;cursor:pointer;font-size:.82em}
+  .chip:hover{background:var(--meta);color:#fff}
+  /* signal picker */
+  .cat-group{margin-bottom:4px}
+  .cat-label{font-size:.72em;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:10px 0 4px}
+  .tog{display:inline-block;background:#eef3f8;border:1px solid var(--line);color:#2b3b4b;border-radius:16px;padding:5px 12px;margin:3px 4px 0 0;cursor:pointer;font-size:.82em;user-select:none}
+  .tog.on{background:var(--meta);color:#fff;border-color:var(--meta)}
+  .addbtn{padding:9px 16px;border:none;border-radius:8px;background:var(--meta);color:#fff;font-weight:600;cursor:pointer}
+  .sel-h{margin-top:16px;color:var(--meta);font-size:.95em}
+  .selected-list{margin-top:8px}
+  .srow{display:grid;grid-template-columns:180px 1fr 30px;gap:8px;align-items:center;margin-bottom:6px}
+  @media(max-width:600px){.srow{grid-template-columns:120px 1fr 28px}}
+  .srow .lab{font-weight:600;font-size:.88em}
+  .srow input{padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:.9em}
+  .srow .x{cursor:pointer;color:var(--off);font-weight:800;text-align:center;font-size:1.15em}
+  .empty-note{color:var(--muted);font-size:.85em;padding:8px 0}
+
+  .btn{background:linear-gradient(135deg,#0064e0 0%,#0a2540 100%);color:#fff;border:none;padding:15px 40px;border-radius:10px;font-size:1.25em;font-weight:600;cursor:pointer;transition:.2s;display:block;width:100%}
+  .btn:hover{transform:translateY(-2px);box-shadow:0 10px 20px rgba(8,102,255,.4)}
+  .btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+
+  .disclaimer{background:#fff4f3;border:1px solid #f6c9c4;color:#9b342b;font-size:.82em;border-radius:8px;padding:8px 12px;margin-top:12px}
+
+  .results{margin-top:20px}
+  .hidden{display:none}
+  .err{background:#fee;border-left:4px solid #f44336;color:#c62828;padding:14px;border-radius:6px}
+  .spinner{width:22px;height:22px;border:3px solid #cfd8dc;border-top-color:var(--meta);border-radius:50%;animation:spin .8s linear infinite;display:inline-block;vertical-align:middle}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* briefing */
+  .brief-top{display:grid;grid-template-columns:260px 1fr;gap:16px;align-items:stretch}
+  @media(max-width:760px){.brief-top{grid-template-columns:1fr}}
+  .gauge{border-radius:14px;padding:18px;color:#fff;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;box-shadow:0 6px 18px rgba(0,0,0,.12)}
+  .gauge .temp{font-size:1.6em;font-weight:800;letter-spacing:.5px}
+  .gauge .score{font-size:3.2em;font-weight:800;line-height:1}
+  .gauge .scale{font-size:.72em;opacity:.9;margin-top:4px}
+  .g-on{background:linear-gradient(135deg,#1aa06d,#0b7d52)}
+  .g-neutral{background:linear-gradient(135deg,#e0a100,#b07e00)}
+  .g-off{background:linear-gradient(135deg,#e0483d,#b4302a)}
+  .headline{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;display:flex;align-items:center;font-size:1.25em;font-weight:600;line-height:1.4}
+  .asof{font-size:.72em;color:var(--muted);font-weight:500;display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+  @media(max-width:760px){.grid2{grid-template-columns:1fr}}
+  .box{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .box h4{color:var(--meta);margin-bottom:10px;font-size:1em}
+  .box ul{margin-left:18px;color:#2b3b4b}.box li{margin-bottom:6px;line-height:1.45}
+
+  .signals{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-top:16px}
+  .sig{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--meta);border-radius:10px;padding:12px}
+  .sig .n{font-weight:700;font-size:.95em}
+  .sig .v{font-family:ui-monospace,Menlo,monospace;font-size:1.05em;margin:3px 0}
+  .sig .r{font-size:.82em;color:var(--muted);line-height:1.35}
+  .sig.up{border-left-color:var(--on)}.sig.down{border-left-color:var(--off)}.sig.flat{border-left-color:var(--neutral)}
+
+  .focus{background:linear-gradient(135deg,#eaf2fe,#f3f8ff);border:1px solid #cfe0f5;border-radius:12px;padding:16px;margin-top:16px}
+  .focus h4{color:var(--meta);margin-bottom:10px}
+  .focus ol{margin-left:20px}.focus li{margin-bottom:8px;font-weight:500;line-height:1.45}
+
+  /* follow-up */
+  .ask{margin-top:18px;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .ask h4{color:var(--meta);margin-bottom:10px}
+  .log{max-height:240px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+  .msg{padding:10px 12px;border-radius:10px;max-width:85%;line-height:1.45}
+  .msg.u{align-self:flex-end;background:var(--meta);color:#fff}
+  .msg.b{align-self:flex-start;background:#fff;border:1px solid var(--line)}
+  .ask-in{display:flex;gap:8px}
+  .ask-in input{flex:1;padding:11px;border:2px solid var(--line);border-radius:8px}
+  .ask-in button{padding:11px 18px;border:none;border-radius:8px;background:var(--meta);color:#fff;font-weight:600;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>📡 SignalDesk</h1>
+    <p class="subtitle">Your scattered market signals → one daily read of what to focus on</p>
+    <span class="badge">Powered by Muse Spark · Meta Model API</span>
+  </header>
+
+  <div class="main">
+
+    <!-- API KEY BAR -->
+    <div id="apiBar" class="api-bar">
+      <span class="dot"></span>
+      <label for="apiKey">Meta Model API key:</label>
+      <input id="apiKey" type="password" placeholder="paste your key (Model API dashboard → API keys)" autocomplete="off">
+      <span class="small">Your key stays in this browser tab only — never saved, never shipped in the code. For a shared demo, use a spend-limited key.</span>
+      <div class="advanced">
+        <input id="apiBase" type="text" value="https://api.meta.ai/v1" title="API base URL">
+        <input id="textModel" type="text" value="muse-spark-1.3-contributor" title="Text model id">
+        <label class="ground"><input type="checkbox" id="useGrounding"> Live data via Muse Spark web-search grounding</label>
+        <input id="groundTool" type="text" value="web_search" title="Grounding tool type — confirm exact value in Meta cookbook / office hours" style="max-width:140px">
+        <span class="small">Grounding ON = Muse Spark fetches today's readings itself (leave a reading blank and it fills it). Confirm the tool value above in the Meta cookbook / #office-hours. If a call errors with grounding on, turn it off and enter readings manually — never fake numbers.</span>
+      </div>
+    </div>
+
+    <!-- INPUT: signal picker -->
+    <div class="panel">
+      <h3>Your signal desk</h3>
+      <p class="hint">Pick the signals you track, add your own, then type today's reading for each. Your selection is remembered on this device. SignalDesk reads only from what you enter — no invented numbers.</p>
+      <div id="catalog"></div>
+      <div class="row">
+        <input id="customName" type="text" placeholder="Add your own — e.g. AAPL, EUR/USD, credit spreads" style="flex:1;min-width:200px;padding:9px;border:2px solid var(--line);border-radius:8px" onkeydown="if(event.key==='Enter')addCustom()">
+        <button class="addbtn" onclick="addCustom()">+ Add signal</button>
+      </div>
+      <h4 class="sel-h">Today's readings</h4>
+      <div id="selected" class="selected-list"></div>
+      <div class="disclaimer">⚠️ Decision-support only — SignalDesk summarizes signals and surfaces what to watch. It is not financial advice and does not tell you to buy or sell.</div>
+    </div>
+
+    <button class="btn" id="goBtn" onclick="brief()">⚡ Generate today's briefing with Muse Spark</button>
+
+    <div id="results" class="results hidden"></div>
+
+    <!-- FOLLOW-UP -->
+    <div id="ask" class="ask hidden">
+      <h4>💬 Ask about today's read</h4>
+      <div id="log" class="log"></div>
+      <div class="ask-in">
+        <input id="askIn" placeholder="Why is risk elevated? What would flip it risk-on? What am I missing?" onkeydown="if(event.key==='Enter')askQ()">
+        <button onclick="askQ()">Ask</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* ---------------- Signal catalog & user watchlist ---------------- */
+const CATALOG={
+ 'Equity indices':['S&P 500','Nasdaq 100','Dow Jones','Russell 2000'],
+ 'Volatility':['VIX','MOVE (bond vol)'],
+ 'Rates & macro':['US 10Y yield','US 2Y yield','Fed cut odds'],
+ 'FX':['DXY (US dollar)','EUR/USD','USD/JPY'],
+ 'Commodities':['WTI Crude','Gold','Copper','Nat Gas'],
+ 'Crypto':['Bitcoin','Ethereum'],
+ 'Breadth':['% S&P above 50-day MA']
+};
+const SAMPLE={
+ 'S&P 500':'-0.8% overnight','Nasdaq 100':'-1.2%','VIX':'21.4 (up from 18.1)',
+ 'US 10Y yield':'4.32% (+6 bps)','DXY (US dollar)':'104.8, firm','WTI Crude':'$78, +1.5%',
+ 'Gold':'$2,410, +0.6%','Bitcoin':'$67k, -2%'
+};
+const LSKEY='signaldesk.watchlist';
+let selected=[], values={};
+
+function defaults(){return ['S&P 500','Nasdaq 100','VIX','US 10Y yield','DXY (US dollar)','WTI Crude','Gold','Bitcoin'];}
+function loadSel(){try{const r=localStorage.getItem(LSKEY);if(r){const a=JSON.parse(r);if(Array.isArray(a)&&a.length)return a;}}catch(e){}return defaults();}
+function saveSel(){try{localStorage.setItem(LSKEY,JSON.stringify(selected));}catch(e){}}
+
+function renderCatalog(){
+  const host=document.getElementById('catalog'); host.innerHTML='';
+  Object.keys(CATALOG).forEach(cat=>{
+    const g=document.createElement('div'); g.className='cat-group';
+    g.innerHTML=`<div class="cat-label">${cat}</div>`;
+    CATALOG[cat].forEach(name=>{
+      const t=document.createElement('span');
+      t.className='tog'+(selected.includes(name)?' on':'');
+      t.textContent=name; t.onclick=()=>toggleSig(name);
+      g.appendChild(t);
+    });
+    host.appendChild(g);
+  });
+}
+function renderSelected(){
+  const host=document.getElementById('selected'); host.innerHTML='';
+  if(!selected.length){host.innerHTML='<div class="empty-note">No signals selected yet — pick some above or add your own.</div>';return;}
+  selected.forEach(name=>{
+    if(values[name]==null)values[name]=SAMPLE[name]||'';
+    const row=document.createElement('div'); row.className='srow';
+    row.innerHTML=`<div class="lab">${esc(name)}</div>`;
+    const inp=document.createElement('input'); inp.type='text'; inp.value=values[name]; inp.placeholder="today's reading";
+    inp.oninput=()=>{values[name]=inp.value;};
+    const x=document.createElement('div'); x.className='x'; x.textContent='×'; x.title='Remove'; x.onclick=()=>removeSig(name);
+    row.appendChild(inp); row.appendChild(x); host.appendChild(row);
+  });
+}
+function toggleSig(name){ selected.includes(name)?selected=selected.filter(n=>n!==name):selected.push(name); saveSel(); renderCatalog(); renderSelected(); }
+function removeSig(name){ selected=selected.filter(n=>n!==name); saveSel(); renderCatalog(); renderSelected(); }
+function addCustom(){ const i=document.getElementById('customName'); const n=i.value.trim(); if(!n)return; if(!selected.includes(n))selected.push(n); i.value=''; saveSel(); renderCatalog(); renderSelected(); }
+function buildSignals(){ return selected.map(n=>(values[n]&&values[n].trim())?`${n}: ${values[n].trim()}`:null).filter(Boolean).join('\n'); }
+
+let lastBrief=null, chat=[];
+
+function cfg(){return{
+  key:document.getElementById('apiKey').value.trim(),
+  base:document.getElementById('apiBase').value.trim().replace(/\/$/,''),
+  text:document.getElementById('textModel').value.trim(),
+  ground:document.getElementById('useGrounding').checked,
+  groundTool:(document.getElementById('groundTool').value||'web_search').trim()
+};}
+document.getElementById('apiKey').addEventListener('input',()=>{
+  document.getElementById('apiBar').classList.toggle('ok',!!document.getElementById('apiKey').value.trim());
+});
+
+async function sparkChat(messages,opts){
+  const c=cfg();
+  const body={model:c.text,messages,temperature:(opts&&opts.temp)??0.2};
+  // Optional web-search grounding. Exact tool schema varies — confirm in Meta docs / office hours.
+  if(c.ground && opts&&opts.allowTools){ body.tools=[{type:c.groundTool||'web_search'}]; }
+  const r=await fetch(c.base+'/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+c.key},body:JSON.stringify(body)});
+  if(!r.ok){throw new Error('API '+r.status+': '+(await r.text()).slice(0,300));}
+  const d=await r.json();
+  return d.choices?.[0]?.message?.content||'';
+}
+
+async function brief(){
+  const c=cfg();
+  if(!c.key)return showErr('Add your Meta Model API key at the top first.');
+  if(!selected.length)return showErr('Select at least one signal first.');
+  const ground=c.ground;
+  let signals;
+  if(ground){
+    signals=selected.map(n=>{const v=values[n]&&values[n].trim();return v?`${n}: ${v}`:`${n}: (fetch latest reading)`;}).join('\n');
+  }else{
+    signals=buildSignals();
+    if(!signals)return showErr('Enter a reading for at least one signal, or turn on live grounding to fetch them.');
+  }
+  const btn=document.getElementById('goBtn');
+  btn.disabled=true; btn.innerHTML='<span class="spinner"></span> Reading the signals…';
+  const R=document.getElementById('results'); R.classList.remove('hidden');
+  R.innerHTML='<div style="text-align:center;padding:24px"><span class="spinner"></span> Muse Spark is synthesizing today\'s read…</div>';
+  const today=new Date().toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+  const groundClause=ground
+    ? 'You HAVE live web search. For each listed signal, retrieve the most recent available reading and use it; where the user already gave a value, update it if newer. In "caveat", state the approximate date/time the data reflects.'
+    : 'Work ONLY from the data provided. NEVER invent prices or figures that are not given.';
+  const sys=`You are SignalDesk, a sharp, disciplined markets analyst writing a trader's morning risk briefing.
+${groundClause}
+Judge the overall risk environment and what the trader should focus on. Be concise and concrete.
+Reply with ONLY a JSON object, no markdown, EXACTLY these keys:
+{
+ "riskTemperature": "Risk-on | Neutral | Risk-off",
+ "riskScore": 0-100,   // 0 = extreme risk-off, 50 = neutral, 100 = strong risk-on
+ "headline": "one sentence capturing today's risk picture",
+ "signals": [ {"name":"VIX","value":"21.4","dir":"up|down|flat","read":"short interpretation"} ],   // one per input signal
+ "whatMoved": ["2-4 short bullets: the notable moves and why they matter"],
+ "whatToWatch": ["2-4 short bullets: events/levels that could change the picture today"],
+ "focus": ["exactly 3 concrete things the trader should focus on / keep in mind today"],
+ "caveat": "one short line of risk/uncertainty"
+}
+Be factually careful. This is decision-support, not advice — do not tell the user to buy or sell specific assets.`;
+  const user=`Date/time: ${today}\n\nToday's signals:\n${signals}`;
+  try{
+    let txt=await sparkChat([{role:'system',content:sys},{role:'user',content:user}],{temp:0.2,allowTools:true});
+    txt=txt.replace(/^```(json)?/i,'').replace(/```$/,'').trim();
+    const s=txt.indexOf('{'),e=txt.lastIndexOf('}');
+    const d=JSON.parse(txt.slice(s,e+1));
+    lastBrief=d; chat=[];
+    render(d,today);
+    document.getElementById('ask').classList.remove('hidden');
+    document.getElementById('log').innerHTML='';
+  }catch(err){showErr('Could not reach Muse Spark. '+err.message+(cfg().ground?' — if grounding caused this, uncheck the live-context box and retry.':''));}
+  finally{btn.disabled=false; btn.innerHTML='⚡ Generate today\'s briefing with Muse Spark';}
+}
+
+function render(d,today){
+  const score=Math.max(0,Math.min(100,Number(d.riskScore)||50));
+  const t=(d.riskTemperature||'').toLowerCase();
+  const gcls=t.includes('on')?'g-on':t.includes('off')?'g-off':'g-neutral';
+  const sigs=(d.signals||[]).map(x=>{
+    const dir=(x.dir||'flat').toLowerCase();
+    const cls=dir==='up'?'up':dir==='down'?'down':'flat';
+    const arrow=dir==='up'?'▲':dir==='down'?'▼':'●';
+    return `<div class="sig ${cls}"><div class="n">${esc(x.name||'')}</div><div class="v">${arrow} ${esc(x.value||'')}</div><div class="r">${esc(x.read||'')}</div></div>`;
+  }).join('');
+  document.getElementById('results').innerHTML=`
+    <div class="brief-top">
+      <div class="gauge ${gcls}">
+        <div class="temp">${esc(d.riskTemperature||'')}</div>
+        <div class="score">${score}</div>
+        <div class="scale">risk score · 0 off → 100 on</div>
+      </div>
+      <div class="headline"><div><span class="asof">Briefing · ${esc(today)}</span>${esc(d.headline||'')}</div></div>
+    </div>
+    <div class="signals">${sigs}</div>
+    <div class="focus">
+      <h4>🎯 Focus today</h4>
+      <ol>${(d.focus||[]).map(x=>`<li>${esc(x)}</li>`).join('')}</ol>
+    </div>
+    <div class="grid2">
+      <div class="box"><h4>📈 What moved</h4><ul>${(d.whatMoved||[]).map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>
+      <div class="box"><h4>👀 What to watch</h4><ul>${(d.whatToWatch||[]).map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>
+    </div>
+    <div class="disclaimer">${esc(d.caveat||'')} — decision-support only, not financial advice.</div>`;
+}
+
+async function askQ(){
+  const inp=document.getElementById('askIn'), q=inp.value.trim(); if(!q)return;
+  const c=cfg(); if(!c.key)return showErr('Add your API key first.');
+  addMsg('u',q); inp.value='';
+  const log=document.getElementById('log');
+  const think=document.createElement('div'); think.className='msg b'; think.innerHTML='<span class="spinner"></span>'; log.appendChild(think); log.scrollTop=log.scrollHeight;
+  const ctx=lastBrief?`Today's briefing context: ${JSON.stringify(lastBrief)}. `:'';
+  chat.push({role:'user',content:q});
+  const messages=[{role:'system',content:'You are SignalDesk, a disciplined markets analyst. '+ctx+'Answer briefly (2-5 sentences), concretely, from the briefing and the user\'s signals. Decision-support only — never tell the user to buy or sell.'},...chat];
+  try{
+    const a=await sparkChat(messages,{temp:0.3,allowTools:false});
+    chat.push({role:'assistant',content:a}); think.remove(); addMsg('b',a||'(no answer)');
+  }catch(e){think.remove(); addMsg('b','Error: '+e.message);}
+}
+function addMsg(who,text){const log=document.getElementById('log');const m=document.createElement('div');m.className='msg '+who;m.textContent=text;log.appendChild(m);log.scrollTop=log.scrollHeight;}
+
+function showErr(m){const R=document.getElementById('results');R.classList.remove('hidden');R.innerHTML=`<div class="err"><strong>⚠️ </strong>${esc(m)}</div>`;}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));}
+
+/* init */
+selected=loadSel(); renderCatalog(); renderSelected();
+</script>
+</body>
+</html>
