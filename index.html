@@ -136,7 +136,7 @@
         <input id="textModel" type="text" value="muse-spark-1.3-contributor" title="Text model id">
         <label class="ground"><input type="checkbox" id="useGrounding"> Live data via Muse Spark web-search grounding</label>
         <input id="groundTool" type="text" value="web_search" title="Grounding tool type — confirm exact value in Meta cookbook / office hours" style="max-width:140px">
-        <span class="small">Grounding ON = Muse Spark fetches today's readings itself (leave a reading blank and it fills it). Confirm the tool value above in the Meta cookbook / #office-hours. If a call errors with grounding on, turn it off and enter readings manually — never fake numbers.</span>
+        <span class="small">Grounding ON = Muse Spark fetches today's readings &amp; the economic calendar itself via the Responses API (leave readings blank and it fills them). If a grounded call errors, turn it off and enter readings manually — never fake numbers.</span>
       </div>
     </div>
 
@@ -155,6 +155,16 @@
       <p class="hint" style="margin-bottom:6px">List known releases with times, or leave blank and turn on live grounding to auto-fetch today's US economic calendar.</p>
       <textarea id="eventsIn" style="min-height:70px" placeholder="e.g. 8:30am ET CPI · 2:00pm ET FOMC rate decision + press conference · Fed speakers"></textarea>
       <div class="disclaimer">⚠️ Decision-support only — SignalDesk summarizes signals, event risk, and what to watch. It is not financial advice and does not tell you to buy or sell or how to size positions.</div>
+    </div>
+
+    <!-- CHART VISION -->
+    <div class="panel">
+      <h3>📈 Chart read (optional) — Muse Spark vision</h3>
+      <p class="hint">Drop in an ES/NQ chart screenshot and Muse Spark reads the key levels and structure — then it's folded into your briefing. It only describes what's visibly on the chart.</p>
+      <input type="file" id="chartFile" accept="image/*" style="font-size:.9em">
+      <div id="chartPreview"></div>
+      <button class="btn" style="margin-top:10px" id="chartBtn" onclick="readChart()">🔍 Read my chart with Muse Spark</button>
+      <div id="chartResult" class="hidden"></div>
     </div>
 
     <button class="btn" id="goBtn" onclick="brief()">⚡ Generate today's briefing with Muse Spark</button>
@@ -229,7 +239,7 @@ function removeSig(name){ selected=selected.filter(n=>n!==name); saveSel(); rend
 function addCustom(){ const i=document.getElementById('customName'); const n=i.value.trim(); if(!n)return; if(!selected.includes(n))selected.push(n); i.value=''; saveSel(); renderCatalog(); renderSelected(); }
 function buildSignals(){ return selected.map(n=>(values[n]&&values[n].trim())?`${n}: ${values[n].trim()}`:null).filter(Boolean).join('\n'); }
 
-let lastBrief=null, chat=[];
+let lastBrief=null, chat=[], chartDataUrl=null, chartReadText='';
 
 function cfg(){return{
   key:document.getElementById('apiKey').value.trim(),
@@ -244,10 +254,24 @@ document.getElementById('apiKey').addEventListener('input',()=>{
 
 async function sparkChat(messages,opts){
   const c=cfg();
+  const hdr={'Content-Type':'application/json','Authorization':'Bearer '+c.key};
+  // Web-search grounding is ONLY available on the Responses API, not Chat Completions.
+  // So when grounding is on for the briefing, route to /responses with the web_search tool.
+  if(c.ground && opts && opts.allowTools){
+    const sys=(messages.find(m=>m.role==='system')||{}).content||'';
+    const input=messages.filter(m=>m.role!=='system').map(m=>m.content).join('\n\n');
+    const body={model:c.text,instructions:sys,input:input,tools:[{type:c.groundTool||'web_search'}]};
+    const r=await fetch(c.base+'/responses',{method:'POST',headers:hdr,body:JSON.stringify(body)});
+    if(!r.ok){throw new Error('API '+r.status+': '+(await r.text()).slice(0,300));}
+    const d=await r.json();
+    if(typeof d.output_text==='string' && d.output_text.trim()) return d.output_text;
+    let out='';
+    if(Array.isArray(d.output)){d.output.forEach(it=>{(it.content||[]).forEach(ct=>{if(ct&&ct.text)out+=ct.text;});});}
+    return out;
+  }
+  // Default path: Chat Completions (no grounding).
   const body={model:c.text,messages,temperature:(opts&&opts.temp)??0.2};
-  // Optional web-search grounding. Exact tool schema varies — confirm in Meta docs / office hours.
-  if(c.ground && opts&&opts.allowTools){ body.tools=[{type:c.groundTool||'web_search'}]; }
-  const r=await fetch(c.base+'/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+c.key},body:JSON.stringify(body)});
+  const r=await fetch(c.base+'/chat/completions',{method:'POST',headers:hdr,body:JSON.stringify(body)});
   if(!r.ok){throw new Error('API '+r.status+': '+(await r.text()).slice(0,300));}
   const d=await r.json();
   return d.choices?.[0]?.message?.content||'';
@@ -291,7 +315,9 @@ Reply with ONLY a JSON object, no markdown, EXACTLY these keys:
 }
 Be factually careful. Decision-support only — do NOT tell the user to buy or sell or give position-sizing instructions. You MAY describe typical event-day behavior (e.g. thin liquidity into a release, volatility spike after the print).`;
   const events=document.getElementById('eventsIn').value.trim();
-  const user=`Date/time: ${today}\n\nInstruments & signals:\n${signals}`+(events?`\n\nKnown scheduled events today (trader-provided):\n${events}`:'');
+  const user=`Date/time: ${today}\n\nInstruments & signals:\n${signals}`
+    +(events?`\n\nKnown scheduled events today (trader-provided):\n${events}`:'')
+    +(chartReadText?`\n\nChart read (Muse Spark's analysis of the trader's chart — incorporate its levels into whatToWatch/focus):\n${chartReadText}`:'');
   try{
     let txt=await sparkChat([{role:'system',content:sys},{role:'user',content:user}],{temp:0.2,allowTools:true});
     txt=txt.replace(/^```(json)?/i,'').replace(/```$/,'').trim();
@@ -355,6 +381,42 @@ async function askQ(){
   }catch(e){think.remove(); addMsg('b','Error: '+e.message);}
 }
 function addMsg(who,text){const log=document.getElementById('log');const m=document.createElement('div');m.className='msg '+who;m.textContent=text;log.appendChild(m);log.scrollTop=log.scrollHeight;}
+
+/* ---------------- Chart vision (Muse Spark multimodal) ---------------- */
+document.getElementById('chartFile').addEventListener('change',e=>{
+  const f=e.target.files&&e.target.files[0]; if(!f)return;
+  const rd=new FileReader();
+  rd.onload=()=>{chartDataUrl=rd.result;
+    document.getElementById('chartPreview').innerHTML=`<img src="${chartDataUrl}" style="max-width:100%;max-height:260px;border-radius:8px;margin-top:10px;border:1px solid var(--line)">`;};
+  rd.readAsDataURL(f);
+});
+async function visionRead(dataUrl){
+  const c=cfg();
+  const sys='You are a futures-desk analyst. Read the attached price chart (likely ES or NQ). Describe ONLY what is visibly on the chart — never invent levels you cannot see.';
+  const body={model:c.text,messages:[
+    {role:'system',content:sys},
+    {role:'user',content:[
+      {type:'text',text:'Read this chart for an ES/NQ day trader. Give, concisely: instrument & timeframe (if visible), current price area, key support and resistance levels, trend/structure, and 1-2 notes. Keep it short and only use what is on the chart.'},
+      {type:'image_url',image_url:{url:dataUrl}}
+    ]}
+  ],temperature:0.2};
+  const r=await fetch(c.base+'/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+c.key},body:JSON.stringify(body)});
+  if(!r.ok)throw new Error('API '+r.status+': '+(await r.text()).slice(0,300));
+  const d=await r.json();
+  return d.choices?.[0]?.message?.content||'';
+}
+async function readChart(){
+  const c=cfg(); if(!c.key)return showErr('Add your Meta Model API key at the top first.');
+  if(!chartDataUrl)return showErr('Choose a chart image first.');
+  const btn=document.getElementById('chartBtn'); btn.disabled=true; btn.innerHTML='<span class="spinner"></span> Reading chart…';
+  const box=document.getElementById('chartResult'); box.classList.remove('hidden');
+  box.innerHTML='<div style="padding:12px"><span class="spinner"></span> Muse Spark is reading your chart…</div>';
+  try{
+    const t=await visionRead(chartDataUrl); chartReadText=t;
+    box.innerHTML=`<div class="box" style="margin-top:12px"><h4>📈 Muse Spark's chart read</h4><div style="white-space:pre-wrap;line-height:1.5">${esc(t)}</div><div class="hint" style="margin-top:8px">✓ This read is now folded into your next briefing.</div></div>`;
+  }catch(e){box.innerHTML=`<div class="err">Chart read failed: ${esc(e.message)} — Muse Spark vision may need the standard model; set the text model to <b>muse-spark-1.3</b> and retry.</div>`;}
+  finally{btn.disabled=false; btn.innerHTML='🔍 Read my chart with Muse Spark';}
+}
 
 function showErr(m){const R=document.getElementById('results');R.classList.remove('hidden');R.innerHTML=`<div class="err"><strong>⚠️ </strong>${esc(m)}</div>`;}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));}
